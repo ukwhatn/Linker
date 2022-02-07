@@ -1,0 +1,20 @@
+DirectoryIndex main.php
+
+<Files "discordOAuth.php">
+Deny from all
+</Files>
+
+<Files "functions.php">
+Deny from all
+</Files>
+
+<Files "database.php">
+Deny from all
+</Files>
+
+<Files "templates.php">
+Deny from all
+</Files>
+
+Header set Pragma no-cache
+Header set Cache-Control no-cache

@@ -1,0 +1,35 @@
+aiohttp==3.7.4.post0
+anyio==3.5.0
+async-timeout==3.0.1
+attrs==21.4.0
+beautifulsoup4==4.10.0
+bs4==0.0.1
+certifi==2021.10.8
+chardet==4.0.0
+charset-normalizer==2.0.11
+discord==1.7.3
+discord.py==1.7.3
+feedparser==6.0.8
+ffmpeg-python==0.2.0
+future==0.18.2
+h11==0.12.0
+httpcore==0.14.7
+httpx==0.22.0
+idna==3.3
+imageio-ffmpeg==0.4.5
+lxml==4.7.1
+multidict==6.0.2
+mysql-connector-python==8.0.28
+nest-asyncio==1.5.4
+numpy==1.22.2
+protobuf==3.19.4
+py-cord @ git+https://github.com/Pycord-Development/pycord@6fb972d91d30ef683f0ba52509ed631467805f2a
+requests==2.27.1
+rfc3986==1.5.0
+sgmllib3k==1.0.0
+sniffio==1.2.0
+soupsieve==2.3.1
+typing_extensions==4.0.1
+urllib3==1.26.8
+wikidot @ git+ssh://git@github.com/ukwhatn/wikidot.py.git@8c5644ba00109cae2c17da4a6ff323660f4fca00
+yarl==1.7.2
