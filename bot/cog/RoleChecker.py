@@ -221,6 +221,13 @@ class RoleChecker(commands.Cog):
         if bot_config.DEVMODE:
             print("Update Finished")
 
+    @slash_command(name="reload_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
+    @commands.has_permissions(ban_members=True)
+    async def reloadUpdateTask(self, ctx):
+        self.updateTask.stop()
+        self.updateTask.start()
+        await ctx.respond("Done")
+
 
 def setup(bot):
     return bot.add_cog(RoleChecker(bot))
