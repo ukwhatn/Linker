@@ -166,6 +166,8 @@ class RoleChecker(commands.Cog):
                         for _role in regisiteredRolesOnGuild:
                             if _role.id not in processedRoleIDsOnGuild:
                                 _removeTarget.append(role)
+                        if bot_config.DEVMODE:
+                            print(regisiteredRolesOnGuild, processedRoleIDsOnGuild, _removeTarget)
                         await _discordUser.remove_roles(*_removeTarget)
 
                         if isLinked is True:
