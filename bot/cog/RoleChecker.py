@@ -165,7 +165,7 @@ class RoleChecker(commands.Cog):
                         _removeTarget = []
                         for _role in regisiteredRolesOnGuild:
                             if _role.id not in processedRoleIDsOnGuild:
-                                _removeTarget.append(role)
+                                _removeTarget.append(_role)
                         if bot_config.DEVMODE:
                             print(regisiteredRolesOnGuild, processedRoleIDsOnGuild, _removeTarget)
                         await _discordUser.remove_roles(*_removeTarget)
