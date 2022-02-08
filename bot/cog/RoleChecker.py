@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import deepcopy
 
 import discord
@@ -22,8 +24,8 @@ class RoleChecker(commands.Cog):
     async def on_ready(self):
         """on_ready時に発火する関数
         """
-        self.updateTask.stop()
-        self.updateTask.start()
+        # self.updateTask.stop()
+        # self.updateTask.start()
 
     @staticmethod
     def randomname(n):
@@ -213,7 +215,7 @@ class RoleChecker(commands.Cog):
         if bot_config.DEVMODE:
             print("メソッド終了")
 
-    @tasks.loop(minutes=5.0)
+    @tasks.loop(minutes=30)
     async def updateTask(self):
         if bot_config.DEVMODE:
             print("Update Start")
