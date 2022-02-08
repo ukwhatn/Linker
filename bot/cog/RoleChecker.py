@@ -24,6 +24,7 @@ class RoleChecker(commands.Cog):
     async def on_ready(self):
         """on_ready時に発火する関数
         """
+        pass
         # self.updateTask.stop()
         # self.updateTask.start()
 
