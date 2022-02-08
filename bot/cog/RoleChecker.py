@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from copy import deepcopy
 
 import discord
@@ -19,14 +17,6 @@ class RoleChecker(commands.Cog):
 
         self.updateRegisiteredRoles()
         self.updateLinkerAccounts()
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        """on_ready時に発火する関数
-        """
-        pass
-        # self.updateTask.stop()
-        # self.updateTask.start()
 
     @staticmethod
     def randomname(n):
