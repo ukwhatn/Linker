@@ -136,13 +136,11 @@ class RoleChecker(commands.Cog):
 
     async def addRolesToUpdatedMembersOnGuild(self, targetGuild: discord.Guild = None):
         # テーブルを更新
-        if bot_config.DEVMODE:
-            print("テーブル更新")
+        self.logger.info("テーブル更新")
         self.updateDiscordAccountsTable(targetGuild)
 
         # 更新されたユーザを取得
-        if bot_config.DEVMODE:
-            print("ターゲットユーザ取得")
+        self.logger.info("ターゲットユーザ取得")
         users = self.getLatestUpdatedRowFromDiscordAccountsTable()
         # 整形
         usersPerGuild = {}
@@ -164,8 +162,7 @@ class RoleChecker(commands.Cog):
             if targetGuild is not None and guild.id != targetGuild.id:
                 continue
 
-            if bot_config.DEVMODE:
-                print(f"処理開始: {guild.name}")
+            self.logger.info(f"処理開始: {guild.name}")
 
             # 更新されたユーザのうち、このGuildに参加しているユーザを取得
             if guildID in usersPerGuild:
@@ -188,8 +185,7 @@ class RoleChecker(commands.Cog):
                     for role in roleObjsInGuild:
                         if role.id in userRoleIDs:
                             await userObj.remove_roles(*roleObjsInGuild)
-                            if bot_config.DEVMODE:
-                                print(f"ロール削除: {userObj.name}")
+                            self.logger.info(f"ロール削除: {userObj.name}")
                             break
 
             rolesToAdd = {}
@@ -218,14 +214,12 @@ class RoleChecker(commands.Cog):
                 userObj = guild.get_member(userID)
                 if userObj is not None and not userObj.bot:
                     await userObj.add_roles(*roles)
-                    if bot_config.DEVMODE:
-                        print(f"ロール付与: {userObj.name}, {','.join([role.name for role in roles])}")
+                    self.logger.info(f"ロール付与: {userObj.name}, {','.join([role.name for role in roles])}")
 
     @slash_command(name="force_update" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def forceUpdate(self, ctx):
-        if bot_config.DEVMODE:
-            print("メソッド開始")
+        self.logger.infot("メソッド開始")
 
         await ctx.respond("強制アップデートを開始します")
 
@@ -233,8 +227,7 @@ class RoleChecker(commands.Cog):
 
         await ctx.respond("強制アップデートを完了しました")
 
-        if bot_config.DEVMODE:
-            print("メソッド終了")
+        self.logger.info("メソッド終了")
 
     @tasks.loop(minutes=1)
     async def updateTask(self):
