@@ -25,7 +25,7 @@ class RoleChecker(commands.Cog):
 
     @staticmethod
     def randomname(n):
-        if bot_config.DEVMODE:
+        if bot_config.FORCE_COMMAND_UPDATE:
             randlst = [random.choice(string.ascii_letters + string.digits) for i in range(n)]
             return "_" + "".join(randlst).lower()
         else:
