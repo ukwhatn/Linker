@@ -184,6 +184,8 @@ class RoleChecker(commands.Cog):
                     logging.debug(f"ロール削除: {userObj.name}")
                     await userObj.remove_roles(*roleObjsInGuild)
 
+            rolesToAdd = {}
+
             # ロールごとに見る
             for roleID, roleDatas in self.regisiteredRoles[guildID].items():
                 # ロールオブジェクト取得
@@ -200,8 +202,14 @@ class RoleChecker(commands.Cog):
                             roleDatas["IsJPMember"] == -1 or (roleDatas["IsJPMember"] == user["isJPMember"])):
                         userObj = guild.get_member(user["UserID"])
                         if userObj is not None and not userObj.bot:
-                            logging.debug(f"ロール付与: {userObj.name}, {role.name}")
-                            await userObj.add_roles(role)
+                            if userObj.id not in rolesToAdd:
+                                rolesToAdd[userObj.id] = []
+                            rolesToAdd[userObj.id].append(role)
+
+            for userID, roles in rolesToAdd.items():
+                userObj = guild.get_member(userID)
+                if userObj is not None and not userObj.bot:
+                    await userObj.add_roles(*roles)
 
     @slash_command(name="force_update" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
