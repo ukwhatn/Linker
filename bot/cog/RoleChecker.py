@@ -1,11 +1,12 @@
-from copy import deepcopy
-
-import discord
-from discord.ext import commands, tasks
-from discord.commands import slash_command, Option
+import logging
 import random
 import string
+
+import discord
 import mysql.connector
+from discord.commands import slash_command, Option
+from discord.ext import commands, tasks
+
 from config import server as server_config, bot as bot_config, database as database_config
 
 
@@ -14,9 +15,13 @@ class RoleChecker(commands.Cog):
         self.bot = bot
         self.linkerAccounts = {}  # {<DiscordID>: {DB Entry}}
         self.regisiteredRoles = {}  # {<GuildID>: {<RoleID>: {DB Entry}}}
+        self.jpMembers = []
 
         self.updateRegisiteredRoles()
         self.updateLinkerAccounts()
+        self.updateNoahInformations()
+
+        self.logger = logging.getLogger("LinkerBot")
 
     @staticmethod
     def randomname(n):
@@ -31,10 +36,10 @@ class RoleChecker(commands.Cog):
         with con.cursor(dictionary=True) as cursor:
             cursor.execute("SELECT * FROM Accounts WHERE WikidotVerified = 1")
             accounts = cursor.fetchall()
-            if accounts is None:
-                self.linkerAccounts = {}
-            else:
-                self.linkerAccounts = {a["DiscordID"]: a for a in accounts}
+        if accounts is None:
+            self.linkerAccounts = {}
+        else:
+            self.linkerAccounts = {a["DiscordID"]: a for a in accounts}
         return
 
     def updateRegisiteredRoles(self):
@@ -42,13 +47,22 @@ class RoleChecker(commands.Cog):
         with con.cursor(dictionary=True) as cursor:
             cursor.execute("SELECT * FROM DiscordRoles WHERE isEnable = 1")
             regisiteredRoles = cursor.fetchall()
-            if regisiteredRoles is None:
-                self.regisiteredRoles = {}
-            else:
-                for a in regisiteredRoles:
-                    if a["GuildID"] not in self.regisiteredRoles:
-                        self.regisiteredRoles[a["GuildID"]] = {}
-                    self.regisiteredRoles[a["GuildID"]][a["RoleID"]] = a
+        if regisiteredRoles is None:
+            self.regisiteredRoles = {}
+        else:
+            for a in regisiteredRoles:
+                if a["GuildID"] not in self.regisiteredRoles:
+                    self.regisiteredRoles[a["GuildID"]] = {}
+                self.regisiteredRoles[a["GuildID"]][a["RoleID"]] = a
+        return
+
+    def updateNoahInformations(self):
+        con = mysql.connector.connect(**database_config.account)
+        with con.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT sm.userID as 'userID' FROM Noah.SiteMembers sm INNER JOIN Noah.Sites s ON sm.siteID = s.siteID WHERE sm.isResigned = 0 AND s.name='scp-jp'")
+            jpMembers = cursor.fetchall()
+        jpMembers = [u["userID"] for u in jpMembers]
+        self.jpMembers = jpMembers
         return
 
     @slash_command(name="p" + randomname(3), guild_ids=server_config.CORE_SERVERS)
@@ -85,141 +99,145 @@ class RoleChecker(commands.Cog):
             ]))
             self.updateRegisiteredRoles()
 
-    async def searchUserAndAddRole(self, targetGuild: discord.Guild | None = None):
-        # データ更新
+    def isLinkerVerified(self, user: discord.Member):
+        return user.id in self.linkerAccounts.keys()
+
+    def isJPMember(self, user: discord.Member):
+        return user.id in self.jpMembers
+
+    def updateDiscordAccountsTable(self, targetGuild: discord.Guild = None):
         self.updateRegisiteredRoles()
         self.updateLinkerAccounts()
-
-        regisiteredRoles = deepcopy(self.regisiteredRoles)
-        linkerAccounts = deepcopy(self.linkerAccounts)
-
-        for guildId in regisiteredRoles:
-
-            # Guild指定がある場合はここでそれ以外を止める
-            if targetGuild is not None and targetGuild.id != guildId:
+        self.updateNoahInformations()
+        bot: discord.Client = self.bot
+        stmt_insert = []
+        for guild in bot.guilds:
+            if targetGuild is not None and guild.id != targetGuild.id:
                 continue
+            for member in guild.members:
+                if not member.bot:
+                    stmt_insert.append((guild.id, member.id, member.joined_at, self.isLinkerVerified(member), self.isJPMember(member)))
+        con = mysql.connector.connect(**database_config.account)
+        with con.cursor() as cursor:
+            cursor.executemany(
+                "INSERT INTO DiscordAccounts (GuildID, UserID, JoinDate, isLinkerVerified, isJPMember) VALUES (%s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE isLinkerVerified = VALUES(isLinkerVerified), isJPMember = VALUES(isJPMember)",
+                stmt_insert
+            )
+        con.commit()
 
-            # Guildインスタンスを取得
-            guild = self.bot.get_guild(guildId)
+    def getLatestUpdatedRowFromDiscordAccountsTable(self):
+        con = mysql.connector.connect(**database_config.account)
+        with con.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT * FROM DiscordAccounts WHERE latestUpdated = (SELECT DISTINCT latestUpdated FROM DiscordAccounts ORDER BY latestUpdated DESC LIMIT 1) "
+                           "AND latestUpdated >= (NOW() - INTERVAL 1 MINUTE)")
+            rows = cursor.fetchall()
+        return rows
 
+    async def addRolesToUpdatedMembersOnGuild(self, targetGuild: discord.Guild = None):
+        # テーブルを更新
+        logging.info("テーブル更新")
+        self.updateDiscordAccountsTable(targetGuild)
+
+        # 更新されたユーザを取得
+        logging.info("ターゲットユーザ取得")
+        users = self.getLatestUpdatedRowFromDiscordAccountsTable()
+        # 整形
+        usersPerGuild = {}
+        for user in users:
+            if user["GuildID"] not in usersPerGuild:
+                usersPerGuild[user["GuildID"]] = []
+            usersPerGuild[user["GuildID"]].append(user)
+
+        # 登録ロールをGuildごとに見る
+        for guildID in self.regisiteredRoles:
+            # Guildを取得
+            guild: discord.Guild = self.bot.get_guild(guildID)
+
+            # Guildがなければとばす
             if guild is None:
-                # Guildが見つからなければ次へ
                 continue
 
-            # Guildに指定されているロールを存在確認しながら列挙
-            # iterateしつつ、Remove時にも使う
-            regisiteredRolesOnGuild = []
-            for roleId in regisiteredRoles[guildId]:
-                # Roleインスタンス取得
-                role = guild.get_role(roleId)
-                if role is not None:
-                    regisiteredRolesOnGuild.append(role)
+            # Guildの指定があったらそれ以外を飛ばす
+            if targetGuild is not None and guild.id != targetGuild.id:
+                continue
 
-            # Remove除外用処理済RoleIDリスト
-            processedRoleIDsOnGuild = []
+            logging.info(f"処理開始: {guild.name}")
 
-            for role in regisiteredRolesOnGuild:
+            # 更新されたユーザのうち、このGuildに参加しているユーザを取得
+            if guildID in usersPerGuild:
+                usersInGuild = usersPerGuild[guildID]
+            else:
+                continue
 
-                # 処理済に追加
-                processedRoleIDsOnGuild.append(role.id)
+            # Guild内のターゲットロールを列挙(削除用)
+            roleObjsInGuild = []
+            for roleID in self.regisiteredRoles[guildID].keys():
+                roleObj: discord.Role = guild.get_role(roleID)
+                if roleObj is not None:
+                    roleObjsInGuild.append(roleObj)
 
-                isLinked = regisiteredRoles[guildId][role.id]["IsLinked"]
-                isJPMember = regisiteredRoles[guildId][role.id]["IsJPMember"]
+            # 対象ユーザからターゲットロールをすべて剥奪
+            for user in usersInGuild:
+                userObj = guild.get_member(user["UserID"])
+                if userObj is not None and not userObj.bot:
+                    logging.info(f"ロール削除: {userObj.name}")
+                    await userObj.remove_roles(*roleObjsInGuild)
 
-                if isLinked == 1:
-                    isLinked = True
-                elif isLinked == 0:
-                    isLinked = False
-                else:
-                    isLinked = None
+            # ロールごとに見る
+            for roleID, roleDatas in self.regisiteredRoles[guildID].items():
+                # ロールオブジェクト取得
+                role = guild.get_role(roleID)
 
-                if isJPMember == 1:
-                    isJPMember = True
-                elif isJPMember == 0:
-                    isJPMember = False
-                else:
-                    isJPMember = None
-
-                # エラー除外
-                if isLinked is False and (isJPMember is True or isJPMember is False):
+                # ロールがなければとばす
+                if role is None:
                     continue
 
-                elif isJPMember is True:
-                    # Linker登録済かつJPメンバ
-                    # TODO: 実装
-                    pass
-                elif isJPMember is False:
-                    # Linker登録済かつJPメンバではない
-                    # TODO: 実装
-                    pass
-                else:
-                    # JPメンバかどうかは問わない
-                    regisiteredAccountIDs = linkerAccounts.keys()
-                    for _discordUser in guild.members:
-
-                        # botアカウント除外
-                        if _discordUser.bot:
-                            continue
-
-                        # 既存未処理Role剥奪
-                        _removeTarget = []
-                        for _role in regisiteredRolesOnGuild:
-                            if _role.id not in processedRoleIDsOnGuild:
-                                _removeTarget.append(_role)
-                        if bot_config.DEVMODE:
-                            print(regisiteredRolesOnGuild, processedRoleIDsOnGuild, _removeTarget)
-                        await _discordUser.remove_roles(*_removeTarget)
-
-                        if isLinked is True:
-                            # Linker登録済
-                            if _discordUser.id in regisiteredAccountIDs:
-                                # 登録済ならRole付与
-                                await _discordUser.add_roles(role)
-
-                        elif isLinked is False:
-                            # Linker未登録
-                            if _discordUser.id not in regisiteredAccountIDs:
-                                # 未登録ならRole付与
-                                await _discordUser.add_roles(role)
-
-                    else:
-                        # ギルド内全員
-                        # TODO: 実装
-                        pass
+                # 対象ユーザごとに見る
+                for user in usersInGuild:
+                    # ロールの条件と合致したらロールをつける
+                    if (roleDatas["IsLinked"] == -1 or (roleDatas["IsLinked"] == user["isLinkerVerified"])) and (
+                            roleDatas["IsJPMember"] == -1 or (roleDatas["IsJPMember"] == user["isJPMember"])):
+                        userObj = guild.get_member(user["UserID"])
+                        if userObj is not None and not userObj.bot:
+                            logging.info(f"ロール付与: {userObj.name}, {role.name}")
+                            await userObj.add_roles(role)
 
     @slash_command(name="force_update" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def forceUpdate(self, ctx):
-        if bot_config.DEVMODE:
-            print("メソッド開始")
+        logging.info("メソッド開始")
 
         await ctx.respond("強制アップデートを開始します")
 
-        if bot_config.DEVMODE:
-            print("処理開始")
-
-        await self.searchUserAndAddRole(targetGuild=ctx.guild)
-
-        if bot_config.DEVMODE:
-            print("処理終了")
+        await self.addRolesToUpdatedMembersOnGuild(targetGuild=ctx.guild)
 
         await ctx.respond("強制アップデートを完了しました")
 
-        if bot_config.DEVMODE:
-            print("メソッド終了")
+        logging.info("メソッド終了")
 
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=1)
     async def updateTask(self):
-        if bot_config.DEVMODE:
-            print("Update Start")
-        await self.searchUserAndAddRole()
-        if bot_config.DEVMODE:
-            print("Update Finished")
+        logging.info("Update Start")
+        await self.addRolesToUpdatedMembersOnGuild()
+        logging.info("Update Finished")
 
     @slash_command(name="reload_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def reloadUpdateTask(self, ctx):
         self.updateTask.stop()
+        self.updateTask.start()
+        await ctx.respond("Done")
+
+    @slash_command(name="stop_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
+    @commands.has_permissions(ban_members=True)
+    async def stopUpdateTask(self, ctx):
+        self.updateTask.stop()
+        await ctx.respond("Done")
+
+    @slash_command(name="start_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
+    @commands.has_permissions(ban_members=True)
+    async def startUpdateTask(self, ctx):
         self.updateTask.start()
         await ctx.respond("Done")
 
