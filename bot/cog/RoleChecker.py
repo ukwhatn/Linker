@@ -59,9 +59,9 @@ class RoleChecker(commands.Cog):
     def updateNoahInformations(self):
         con = mysql.connector.connect(**database_config.account)
         with con.cursor(dictionary=True) as cursor:
-            cursor.execute("SELECT sm.userID as 'userID' FROM Noah.SiteMembers sm INNER JOIN Noah.Sites s ON sm.siteID = s.siteID WHERE sm.isResigned = 0 AND s.name='scp-jp'")
+            cursor.execute("SELECT a.DiscordID FROM Accounts a INNER JOIN Noah.SiteMembers sm ON sm.userID = a.WikidotID AND sm.siteID = 578002")
             jpMembers = cursor.fetchall()
-        jpMembers = [u["userID"] for u in jpMembers]
+        jpMembers = [u["DiscordID"] for u in jpMembers]
         self.jpMembers = jpMembers
         return
 
@@ -130,7 +130,7 @@ class RoleChecker(commands.Cog):
         con = mysql.connector.connect(**database_config.account)
         with con.cursor(dictionary=True) as cursor:
             cursor.execute("SELECT * FROM DiscordAccounts WHERE latestUpdated = (SELECT DISTINCT latestUpdated FROM DiscordAccounts ORDER BY latestUpdated DESC LIMIT 1) "
-                           "AND latestUpdated >= (NOW() - INTERVAL 1 MINUTE)")
+                           "AND latestUpdated >= (NOW() - INTERVAL 30 SECOND)")
             rows = cursor.fetchall()
         return rows
 
@@ -184,9 +184,13 @@ class RoleChecker(commands.Cog):
             for user in usersInGuild:
                 userObj = guild.get_member(user["UserID"])
                 if userObj is not None and not userObj.bot:
-                    if bot_config.DEVMODE:
-                        print(f"ロール削除: {userObj.name}")
-                    await userObj.remove_roles(*roleObjsInGuild)
+                    userRoleIDs = [role.id for role in userObj.roles]
+                    for role in roleObjsInGuild:
+                        if role.id in userRoleIDs:
+                            await userObj.remove_roles(*roleObjsInGuild)
+                            if bot_config.DEVMODE:
+                                print(f"ロール削除: {userObj.name}")
+                            break
 
             rolesToAdd = {}
 
@@ -214,6 +218,8 @@ class RoleChecker(commands.Cog):
                 userObj = guild.get_member(userID)
                 if userObj is not None and not userObj.bot:
                     await userObj.add_roles(*roles)
+                    if bot_config.DEVMODE:
+                        print(f"ロール付与: {userObj.name}, {','.join([role.name for role in roles])}")
 
     @slash_command(name="force_update" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
