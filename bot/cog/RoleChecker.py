@@ -113,7 +113,7 @@ class RoleChecker(commands.Cog):
             if targetGuild is not None and guild.id != targetGuild.id:
                 continue
             for member in guild.members:
-                if not member.bot:
+                if not member.bot and not member.pending:
                     stmt_insert.append((guild.id, member.id, member.joined_at, self.isLinkerVerified(member), self.isJPMember(member)))
         con = mysql.connector.connect(**database_config.account)
         with con.cursor() as cursor:
