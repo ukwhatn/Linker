@@ -1,12 +1,13 @@
+import logging
+
 import discord
 from discord.ext import commands
-import logging
+
 from config import bot as bot_config
 
-# logging conf
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)s: %(message)s"
+    format="[%(asctime)s][%(levelname)s] %(message)s"
 )
 
 # bot init
@@ -18,6 +19,6 @@ bot = commands.Bot(command_prefix=commands.when_mentioned_or("/"),
                    )
 
 bot.load_extension("cog.RoleChecker")
-# bot.load_extension("cog.ErrorHandler")
+bot.load_extension("cog.ErrorHandler")
 
 bot.run(bot_config.TOKEN)

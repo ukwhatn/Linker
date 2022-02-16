@@ -7,7 +7,7 @@ import mysql.connector
 from discord.commands import slash_command, Option
 from discord.ext import commands, tasks
 
-from config import server as server_config, bot as bot_config, database as database_config, logger as logger_config
+from config import server as server_config, bot as bot_config, database as database_config
 
 
 class RoleChecker(commands.Cog):
@@ -20,8 +20,6 @@ class RoleChecker(commands.Cog):
         self.updateRegisiteredRoles()
         self.updateLinkerAccounts()
         self.updateNoahInformations()
-
-        self.logger = logger_config.logger
 
     @staticmethod
     def randomname(n):
@@ -136,11 +134,11 @@ class RoleChecker(commands.Cog):
 
     async def addRolesToUpdatedMembersOnGuild(self, targetGuild: discord.Guild = None):
         # テーブルを更新
-        self.logger.info("テーブル更新")
+        logging.info("テーブル更新")
         self.updateDiscordAccountsTable(targetGuild)
 
         # 更新されたユーザを取得
-        self.logger.info("ターゲットユーザ取得")
+        logging.info("ターゲットユーザ取得")
         users = self.getLatestUpdatedRowFromDiscordAccountsTable()
         # 整形
         usersPerGuild = {}
@@ -161,8 +159,6 @@ class RoleChecker(commands.Cog):
             # Guildの指定があったらそれ以外を飛ばす
             if targetGuild is not None and guild.id != targetGuild.id:
                 continue
-
-            self.logger.info(f"処理開始: {guild.name}")
 
             # 更新されたユーザのうち、このGuildに参加しているユーザを取得
             if guildID in usersPerGuild:
@@ -185,7 +181,7 @@ class RoleChecker(commands.Cog):
                     for role in roleObjsInGuild:
                         if role.id in userRoleIDs:
                             await userObj.remove_roles(*roleObjsInGuild)
-                            self.logger.info(f"ロール削除: {userObj.name}")
+                            logging.info(f"({guild.name})ロール削除: {userObj.name}")
                             break
 
             rolesToAdd = {}
@@ -214,45 +210,43 @@ class RoleChecker(commands.Cog):
                 userObj = guild.get_member(userID)
                 if userObj is not None and not userObj.bot:
                     await userObj.add_roles(*roles)
-                    self.logger.info(f"ロール付与: {userObj.name}, {','.join([role.name for role in roles])}")
+                    logging.info(f"({guild.name})ロール付与: {userObj.name}, {','.join([role.name for role in roles])}")
 
     @slash_command(name="force_update" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def forceUpdate(self, ctx):
-        self.logger.infot("メソッド開始")
-
+        logging.info(f"Force update starting on {ctx.guild.name}")
         await ctx.respond("強制アップデートを開始します")
 
         await self.addRolesToUpdatedMembersOnGuild(targetGuild=ctx.guild)
 
+        logging.info(f"Force update finished on {ctx.guild.name}")
         await ctx.respond("強制アップデートを完了しました")
-
-        self.logger.info("メソッド終了")
 
     @tasks.loop(minutes=1)
     async def updateTask(self):
-        logging.info("Update Start")
+        logging.info("Updating....")
         await self.addRolesToUpdatedMembersOnGuild()
-        logging.info("Update Finished")
+        logging.info("Updated")
 
     @slash_command(name="reload_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def reloadUpdateTask(self, ctx):
+        await ctx.respond("Done")
         self.updateTask.stop()
         self.updateTask.start()
-        await ctx.respond("Done")
 
     @slash_command(name="stop_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def stopUpdateTask(self, ctx):
-        self.updateTask.stop()
         await ctx.respond("Done")
+        self.updateTask.stop()
 
     @slash_command(name="start_update_task" + randomname(3), guild_ids=server_config.CORE_SERVERS)
     @commands.has_permissions(ban_members=True)
     async def startUpdateTask(self, ctx):
-        self.updateTask.start()
         await ctx.respond("Done")
+        self.updateTask.start()
 
 
 def setup(bot):
