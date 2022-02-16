@@ -7,7 +7,7 @@ import mysql.connector
 from discord.commands import slash_command, Option
 from discord.ext import commands, tasks
 
-from config import server as server_config, bot as bot_config, database as database_config
+from config import server as server_config, bot as bot_config, database as database_config, logger as logger_config
 
 
 class RoleChecker(commands.Cog):
@@ -21,7 +21,7 @@ class RoleChecker(commands.Cog):
         self.updateLinkerAccounts()
         self.updateNoahInformations()
 
-        self.logger = logging.getLogger("LinkerBot")
+        self.logger = logger_config.logger
 
     @staticmethod
     def randomname(n):
