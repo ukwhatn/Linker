@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+#  db:
+#    image: mariadb:10.7.1
+#    volumes:
+#      - ./maria_data:/var/lib/mysql
+#      - ./init_db:/docker-entrypoint-initdb.d
+#    restart: always
+#    environment:
+#      MYSQL_ROOT_PASSWORD: root_password
+#      MYSQL_USER: application
+#      MYSQL_PASSWORD: applicationpassword
+#    networks:
+#      - nw_linker
+#  bot:
+#    build: ./dockerfiles/bot
+#    volumes:
+#      - ./bot:/opt
+#    networks:
+#      - nw_linker
+#    restart: always
+  pyscript:
+    build: ./dockerfiles/pyscript
+    volumes:
+      - ./scripts/python:/opt
+    networks:
+      - nw_linker
+    restart: always
+
+volumes:
+  maria_data:
+
+networks:
+  nw_linker:
+    driver: bridge
